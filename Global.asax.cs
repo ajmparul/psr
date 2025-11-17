@@ -16,7 +16,7 @@ namespace PSR
     public class MvcApplication : System.Web.HttpApplication
     {
         ILog ErrorLog = LogManager.GetLogger("DBLogger");
-        
+
         protected void Application_Start()
         {
             AreaRegistration.RegisterAllAreas();
@@ -24,6 +24,8 @@ namespace PSR
             RouteConfig.RegisterRoutes(RouteTable.Routes);
             BundleConfig.RegisterBundles(BundleTable.Bundles);
             log4net.Config.XmlConfigurator.Configure();
+            MvcHandler.DisableMvcResponseHeader = true;
+
 
             ErrorLog.Error("Application started");
 
@@ -44,6 +46,50 @@ namespace PSR
             }
 
 
+        }
+        
+        protected void Application_BeginRequest(object sender, EventArgs e)
+        {
+            HttpContext.Current.Response.Headers.Remove("Server");
+        }
+        protected void Application_EndRequest()
+        {
+            var context = HttpContext.Current;
+            if (context.Response.StatusCode == 404 || context.Response.StatusCode == 500)
+            {
+                // handle if needed
+            }
+
+            // Detect large request rejection
+            if (context.Response.StatusCode == 404 && context.Request.ContentLength > 0)
+            {
+                context.Response.Redirect("~/Error/FileTooLarge");
+            }
+        }
+        protected void Application_Error()
+        {
+            var exception = Server.GetLastError();
+            var httpException = exception as HttpException;
+
+            if (httpException != null && httpException.GetHttpCode() == 404)
+            {
+                Response.Clear();
+                Server.ClearError();
+                Response.Redirect("~/Error/NotFound");
+            }
+        }
+
+        protected void Application_PreSendRequestHeaders()
+        {
+            try
+            {
+                Response.Headers.Remove("X-AspNet-Version");
+                HttpContext.Current.Response.Headers.Remove("Server");
+            }
+            catch (Exception ex)
+            {
+                // Optional: Log error
+            }
+        }
     }
-}
 }
